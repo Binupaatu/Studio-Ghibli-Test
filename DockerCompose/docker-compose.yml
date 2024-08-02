@@ -52,7 +52,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: sg@group1
       MYSQL_DATABASE: studio_ghibli_edu
-      MYSQL_USER: sguser
+      MYSQL_USER: root
       MYSQL_PASSWORD: sg@group1
     networks:
       - sgproject
