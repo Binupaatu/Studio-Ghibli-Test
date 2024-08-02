@@ -20,7 +20,7 @@ ARG ENV=local
 
 # Ensure no .env files are present
 
-COPY .env.production .env
+COPY .env .env
 
 # Build the application
 RUN npm run build
