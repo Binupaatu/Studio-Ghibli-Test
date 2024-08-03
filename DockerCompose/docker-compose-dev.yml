@@ -6,7 +6,7 @@ services:
       context: ./admin_frontend
       dockerfile: Dockerfiles/Dockerfile.Dev
     ports:
-      - "8886:80"
+      - "8887:80"
     networks:
       - sgproject
 
@@ -15,7 +15,7 @@ services:
       context: ./frontend/studio-ghibli
       dockerfile: Dockerfiles/Dockerfile.Dev
     ports:
-      - "8885:80"
+      - "8886:80"
     networks:
       - sgproject
 
@@ -24,7 +24,7 @@ services:
       context: ./backend/courses
       dockerfile: Dockerfiles/Dockerfile.Dev
     ports:
-      - "8884:8884"
+      - "8885:8885"
     networks:
       - sgproject
 
