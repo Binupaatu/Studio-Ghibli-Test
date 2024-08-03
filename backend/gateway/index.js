@@ -48,7 +48,8 @@ app.use(
 app.use(
   "/api/customers",
   //proxy(`${CUSTOMER_SERVICE_END_POINT}:${_ENV_CUSTOMER_SERVICE_PORT}`)
-  proxy(`${CUSTOMER_SERVICE_END_POINT}:30598`)
+  proxy('http://127.0.0.1:30598')
+  //proxy(`${CUSTOMER_SERVICE_END_POINT}:30598`)
 );
 app.use(
   "/api/enrollment",
