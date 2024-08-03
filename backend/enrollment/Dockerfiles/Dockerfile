@@ -13,7 +13,7 @@ RUN npm install
 COPY . .
 
 # Set NODE_ENV based on build argument
-ENV NODE_ENV='local'
+ENV NODE_ENV='production'
 
 EXPOSE 8883
 
