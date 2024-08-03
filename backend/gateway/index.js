@@ -58,7 +58,7 @@ app.use(
 app.use(
   "/api/courses",
   //proxy(`${COURSE_SERVICE_END_POINT}:${_ENV_COURSE_SERVICE_PORT}`)
-  proxy(`${COURSE_SERVICE_END_POINT}:31900`)
+  proxy(`${COURSE_SERVICE_END_POINT}:30100`)
 );
 
 app.use((req, res, next) => {
