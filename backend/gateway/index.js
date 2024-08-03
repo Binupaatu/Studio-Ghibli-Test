@@ -42,24 +42,24 @@ app.use(express.json());
 
 app.use(
   "/api/users",
-  //proxy(`${USER_SERVICE_END_POINT}:${_ENV_USER_SERVICE_PORT}`)
-  proxy(`${USER_SERVICE_END_POINT}:32424`)
+  proxy(`${USER_SERVICE_END_POINT}:${_ENV_USER_SERVICE_PORT}`)
+  //proxy(`${USER_SERVICE_END_POINT}:32424`)
 );
 app.use(
   "/api/customers",
-  //proxy(`${CUSTOMER_SERVICE_END_POINT}:${_ENV_CUSTOMER_SERVICE_PORT}`)
-  proxy('http://127.0.0.1:30598')
+  proxy(`${CUSTOMER_SERVICE_END_POINT}:${_ENV_CUSTOMER_SERVICE_PORT}`)
+ // proxy('http://127.0.0.1:30598')
   //proxy(`${CUSTOMER_SERVICE_END_POINT}:30598`)
 );
 app.use(
   "/api/enrollment",
-  //proxy(`${ENROLLMENT_SERVICE_END_POINT}:${_ENV_ENROLLMENT_SERVICE_PORT}`)
-  proxy(`${ENROLLMENT_SERVICE_END_POINT}:32606`)
+  proxy(`${ENROLLMENT_SERVICE_END_POINT}:${_ENV_ENROLLMENT_SERVICE_PORT}`)
+  //proxy(`${ENROLLMENT_SERVICE_END_POINT}:32606`)
 );
 app.use(
   "/api/courses",
-  //proxy(`${COURSE_SERVICE_END_POINT}:${_ENV_COURSE_SERVICE_PORT}`)
-  proxy(`${COURSE_SERVICE_END_POINT}:30100`)
+  proxy(`${COURSE_SERVICE_END_POINT}:${_ENV_COURSE_SERVICE_PORT}`)
+  //proxy(`${COURSE_SERVICE_END_POINT}:30100`)
 );
 
 app.use((req, res, next) => {
