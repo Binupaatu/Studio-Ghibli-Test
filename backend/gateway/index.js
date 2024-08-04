@@ -42,7 +42,7 @@ app.use(express.json());
 
 app.use(
   "/api/users",
-  proxy(http://127.0.0.1:32424)
+  proxy('http://127.0.0.1:32424')
   //proxy(`${USER_SERVICE_END_POINT}:32424`)
 );
 app.use(
