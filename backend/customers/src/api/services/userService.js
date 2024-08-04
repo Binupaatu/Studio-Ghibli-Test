@@ -4,6 +4,7 @@ const ApiService = require("./apiService");
 class UserService {
   constructor() {
     this.apiService = new ApiService(USER_SERVICE_END_POINT);
+    console.log(USER_SERVICE_END_POINT);
   }
   // User operations
   async createUser(userData) {
