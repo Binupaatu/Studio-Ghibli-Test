@@ -42,8 +42,8 @@ app.use(express.json());
 
 app.use(
   "/api/users",
-  proxy('http://127.0.0.1:32424')
-  //proxy(`${USER_SERVICE_END_POINT}:32424`)
+  //proxy('http://127.0.0.1:32424')
+  proxy(`${USER_SERVICE_END_POINT}`)
 );
 app.use(
   "/api/customers",
@@ -53,13 +53,13 @@ app.use(
 );
 app.use(
   "/api/enrollment",
-  proxy(`${ENROLLMENT_SERVICE_PORT}`)
-  //proxy(`${ENROLLMENT_SERVICE_END_POINT}:32606`)
+ // proxy(`${ENROLLMENT_SERVICE_PORT}`)
+  proxy(`${ENROLLMENT_SERVICE_END_POINT}`)
 );
 app.use(
   "/api/courses",
-  proxy(`${COURSE_SERVICE_PORT}`)
-  //proxy(`${COURSE_SERVICE_END_POINT}:30100`)
+  //proxy(`${COURSE_SERVICE_PORT}`)
+  proxy(`${COURSE_SERVICE_END_POINT}`)
 );
 
 app.use((req, res, next) => {
