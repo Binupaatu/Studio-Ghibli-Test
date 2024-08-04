@@ -70,7 +70,7 @@ app.use((req, res, next) => {
 const APP_PORT = APPLICATION_PORT || 8880;
 
 app.listen(APP_PORT, () => {
-  console.log(`IP ||   ${CUSTOMER_SERVICE_END_POINT}:30598`);
+  console.log(`IP ||   ${CUSTOMER_SERVICE_END_POINT}:${_ENV_CUSTOMER_SERVICE_PORT}`);
   console.log(`PORT ||  31900  `);
   console.log(`Gateway running on ${APP_PORT}`);
 });
