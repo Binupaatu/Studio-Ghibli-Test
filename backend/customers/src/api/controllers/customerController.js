@@ -3,6 +3,7 @@ const userService = new (require("../services/userService"))();
 const customerService = new (require("../services/customerService"))();
 const customerValidationSchema = require("../validations/customerSchema");
 const Joi = require("joi");
+const { trace, context, propagation, SpanStatusCode } = require('@opentelemetry/api');
 
 // Utility function to send responses
 const sendResponse = (res, status, message, data = null) => {
@@ -11,56 +12,57 @@ const sendResponse = (res, status, message, data = null) => {
 };
 
 const CustomerController = {
-  async createCustomer(req, res) {
-    // Validate the request body first
-    const { error } = customerValidationSchema.validate(req.body);
-    if (error) {
-      return sendResponse(
-        res,
-        HttpStatus.BAD_REQUEST,
-        error.details[0].message
-      );
-    }
+async createCustomer(req, res) {
+  const tracer = trace.getTracer('customer-service');
+  const span = tracer.startSpan('Create Customer');
 
-    try {
-      const role =
-        req.body.role && req.body.role.trim() !== ""
-          ? req.body.role
-          : "customer";
+  try {
+      const activeContext = trace.setSpan(context.active(), span);
+      
+      const carrier = {};
+      propagation.inject(activeContext, carrier, {
+          set: (carrier, key, value) => carrier[key] = value,
+      });
+
+      const role = req.body.role && req.body.role.trim() !== "" ? req.body.role : "customer";
       const userData = {
-        email: req.body.email,
-        password: req.body.password,
-        role,
+          email: req.body.email,
+          password: req.body.password,
+          role,
       };
 
-      // Create user and get userId
-      const userInfo = await userService.createUser(userData);
-
-      if (null != userInfo && userInfo.result) {
-        const userId = userInfo.data.id;
-        const customerData = { ...req.body, user_id: userId };
-        const customer = await customerService.createCustomer(customerData);
-        sendResponse(
-          res,
-          HttpStatus.CREATED,
-          "Customer has been created successfully.",
-          customer
-        );
+      // Pass the trace context to userService through headers
+      const userInfo = await userService.createUser(userData, carrier);
+      
+      if (userInfo?.result) {
+          const userId = userInfo.data.id;
+          const customerData = { ...req.body, user_id: userId };
+          const customer = await customerService.createCustomer(customerData);
+          sendResponse(res, HttpStatus.CREATED, "Customer has been created successfully.", customer);
       } else {
-        sendResponse(res, HttpStatus.BAD_REQUEST, userInfo.message);
+          sendResponse(res, HttpStatus.BAD_REQUEST, userInfo.message);
       }
-    } catch (error) {
-      console.log(error);
-      sendResponse(
-        res,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-        `Error: ${error.message}`
-      );
-    }
-  },
+
+      span.setStatus({ code: SpanStatusCode.OK });
+  } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      sendResponse(res, HttpStatus.INTERNAL_SERVER_ERROR, `Error: ${error.message}`);
+  } finally {
+      span.end();
+  }
+},
 
   async listCustomers(req, res) {
+    const tracer = trace.getTracer('customer-service');
+    const span = tracer.startSpan('getAllCustomers');
     try {
+      const activeContext = trace.setSpan(context.active(), span);
+      
+      const carrier = {};
+      propagation.inject(activeContext, carrier, {
+          set: (carrier, key, value) => carrier[key] = value,
+      });
       const customers = await customerService.viewCustomers();
       sendResponse(
         res,
@@ -68,16 +70,23 @@ const CustomerController = {
         "User details have been fetched successfully.",
         customers
       );
+      span.setStatus({ code: SpanStatusCode.OK });
     } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
       sendResponse(
         res,
         HttpStatus.INTERNAL_SERVER_ERROR,
         `Error: ${error.message}`
       );
+    }finally {
+      span.end();
     }
   },
 
   async viewCustomer(req, res) {
+    const tracer = trace.getTracer('customer-service');
+    const span = tracer.startSpan('getAllCustomers');
     const customer_id = req.params.id;
     try {
       const customerInfo = await customerService.viewCustomerById(customer_id);
@@ -91,19 +100,28 @@ const CustomerController = {
       } else {
         sendResponse(res, HttpStatus.BAD_REQUEST, "User is Empty!");
       }
+      span.setStatus({ code: SpanStatusCode.OK });
     } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
       sendResponse(
         res,
         HttpStatus.INTERNAL_SERVER_ERROR,
         `Error: ${error.message}`
       );
+    }finally {
+      span.end();
     }
   },
 
   async viewCustomerByUserId(req, res) {
-    const user_id = req.params.id;
+  const user_id = req.params.id;
+  const parentContext = propagation.extract(context.active(), req.headers);
+  const tracer = trace.getTracer('customer-service');
+  const span = tracer.startSpan('Create User', undefined, parentContext);
     try {
-      const customerInfo = await customerService.viewCustomerByUserId(user_id);
+      
+      const customerInfo = await customerService.viewCustomerByUserId(user_id,req.headers);
       if (null != customerInfo) {
         sendResponse(
           res,
@@ -111,16 +129,23 @@ const CustomerController = {
           "Customer details have been fetched successfully.",
           customerInfo
         );
+        span.setStatus({ code: SpanStatusCode.OK });
       } else {
         sendResponse(res, HttpStatus.BAD_REQUEST, "Customer not found!");
       }
     } catch (error) {
+      span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: error.message,
+      });
       sendResponse(
         res,
         HttpStatus.INTERNAL_SERVER_ERROR,
         `Error: ${error.message}`
       );
-    }
+    }finally {
+      span.end();
+  }
   },
 
   async viewCustomerEnrollments(req, res) {
@@ -128,7 +153,6 @@ const CustomerController = {
       const userInfo = await customerService.getUserInfo(
         req.headers.authorization.split(" ")[1]
       );
-      console.l;
       const customerEnrollments = await customerService.viewCustomerEnrollments(
         userInfo[0].profile.id
       );
