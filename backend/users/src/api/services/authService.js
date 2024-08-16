@@ -6,26 +6,39 @@ const Op = require("sequelize");
 const { APP_SECRET, CUSTOMER_SERVICE_END_POINT, COURSE_SERVICE_END_POINT } = require("../../config");
 const axios = require("axios");
 const { trace, SpanStatusCode, propagation, context} = require('@opentelemetry/api');
-
+const client = require('prom-client');
+// Add metrics for the service layer
+const passwordVerificationDuration = new client.Histogram({
+  name: 'password_verification_duration_seconds',
+  help: 'Duration of password verification in seconds',
+  buckets: [0.1, 0.5, 1, 2, 5] // Adjust the buckets as needed
+});
 const authService = {
   async authenticateUser(email, password,carrier) {
     const tracer = trace.getTracer('auth-service');
     const span = tracer.startSpan('authenticateUser');
+    
     try {
       const user = await User.findOne({
         where: { email_id: email, status: 1 },
       });
       if (user) {
+      const startTime = Date.now();
       const match = await bcrypt.compare(password, user.password);
+      const duration = (Date.now() - startTime) / 1000;
+      passwordVerificationDuration.observe(duration); // Record password verification duration
+
       if (!match) {
         throw new Error("Invalid credentials");
       }else{
         span.addEvent('Password verified');
         const userDetails = await this.getCustomerProfile(user.id,carrier);
+        
         const userData = {
           id: user.id,
           profile: userDetails.data || [],
-        };
+        };       
+
         const CourseDetails = await this.getCourseDetails(carrier);
         const token = jwt.sign(userData, APP_SECRET, {
           expiresIn: "1h",

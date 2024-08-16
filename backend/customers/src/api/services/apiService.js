@@ -1,6 +1,7 @@
 const axios = require("axios");
 const { trace, propagation, context } = require('@opentelemetry/api');
 
+
 class ApiService {
   constructor(baseUrl) {
     this.baseUrl = baseUrl;

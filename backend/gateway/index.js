@@ -4,6 +4,7 @@ const cors = require("cors");
 const proxy = require("express-http-proxy");
 const { trace, context, propagation,SpanStatusCode } = require('@opentelemetry/api');
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const client = require('prom-client'); // Prometheus client library
 
 const {
   USER_SERVICE_END_POINT,
@@ -23,6 +24,21 @@ const {
   _ENV_COURSE_SERVICE_PORT,
 } = require("./config");
 const app = express();
+
+// Create a Registry to register the metrics
+const register = new client.Registry();
+
+// Enable the collection of default metrics
+client.collectDefaultMetrics({ register });
+
+
+// Create custom metrics
+const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.1, 0.5, 1, 2.5, 5, 10] // Define your buckets based on expected request duration
+});
 
 
 // CORS options
@@ -50,28 +66,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// Expose metrics endpoint for Prometheus to scrape
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+});
 
-// Proxy Middleware
-/*
-app.use(
-  "/api/users",
-  proxy(USER_SERVICE_END_POINT, {
-    proxyReqOptDecorator: function(proxyReqOpts, srcReq) {
-      // Inject trace context into headers
-      const activeContext = trace.setSpan(context.active(), srcReq.span);
-      propagation.inject(activeContext, proxyReqOpts.headers, {
-        set: (carrier, key, value) => {
-          carrier[key] = value;
-        },
-      });
-      return proxyReqOpts;
-    },
-    userResDecorator: function(proxyRes, proxyResData, userReq, userRes) {
-      // You can inspect or modify the proxy response here if needed
-      return proxyResData;
-    }
-  })
-);*/
+
 app.use(
   "/api/users",
   async (req, res, next) => {

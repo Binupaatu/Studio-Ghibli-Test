@@ -2,41 +2,24 @@ const Course = require("../../models/courseModel");
 const Chapter = require("../../models/courseChapterModel");
 const { Op } = require("sequelize");
 const { propagation,context,trace, SpanStatusCode } = require('@opentelemetry/api');
+const client = require('prom-client');
+// Prometheus metrics setup
+const register = new client.Registry();
+
+// Collect default metrics
+client.collectDefaultMetrics({ register });
+
+// Custom Prometheus metrics
+const serviceRequestDuration = new client.Histogram({
+  name: 'service_request_duration_seconds',
+  help: 'Duration of service requests in seconds',
+  labelNames: ['service', 'operation', 'status_code'],
+  buckets: [0.1, 0.5, 1, 2.5, 5, 10]
+});
+register.registerMetric(serviceRequestDuration);
 
 class CourseService {
-  async createCourse(data) {
-    try {
-      const tracer = trace.getTracer('course-service');
-      const span = tracer.startSpan('CreateCourse');
-      const course = await Course.create(this.extractCourseFields(data));
-      //await this.handleChapters(course.id, data.chapters);
-      span.addEvent('New Course created');
-      span.setStatus({ code: SpanStatusCode.OK });
-      return course;
-    } catch (error) {
-      span.recordException(error);
-      span.setStatus({ code: SpanStatusCode.ERROR });
-      throw new Error(error.message);
-    }finally {
-      span.end();
-    }
-  }
-
-  async editCourse(courseId, data) { console.log("edit Course");
-    try {
-      const course = await Course.findByPk(courseId);
-      if (!course) {
-        throw new Error("Course not found!");
-      }
-
-      await course.update(this.extractCourseFields(data));
-      await this.handleChapters(courseId, data.chapters);
-      return course;
-    } catch (error) {
-      throw new Error(error.message);
-    }
-  }
-
+  
   // Extracts course fields from data
   extractCourseFields(data) {
     return {
@@ -54,25 +37,13 @@ class CourseService {
     };
   }
 
-  // Handle creation and updating of chapters
-  async handleChapters(courseId, chapters) {
-    if (chapters && 0 < chapters.length) {
-      const chapter_data = chapters;
-      const chapter_data_with_course = chapter_data.map((chapter) => ({
-        ...chapter,
-        course_id: courseId,
-      }));
-
-      await Chapter.destroy({ where: { course_id: courseId } });
-      await Chapter.bulkCreate(chapter_data_with_course);
-    }
-  }
-
   //Get indiviadual course details
   async getCourseDetails(courseId) {
     console.log("Get edit Course");
     const tracer = trace.getTracer('course-service');
     const span = tracer.startSpan('viewCourses');
+    const end = serviceRequestDuration.startTimer({ service: 'CourseService', operation: 'FetchCourse' });
+
     try {
       let courseInfo = await Course.findByPk(courseId);
       const chapters = await Chapter.findAll({
@@ -93,28 +64,11 @@ class CourseService {
       span.end();
     }
   }
-  //Delete a course from the database
-  async deleteCourse(courseId) {
-    console.log("delete Course");
-    const course = await Course.findByPk(courseId);
-
-    if (!course) {
-      throw new Error("Course not found");
-    } else {
-      try {
-        course.status = "-1";
-        const deleteCourse = await course.save();
-        return deleteCourse;
-      } catch (error) {
-        throw new Error(error.message);
-      }
-    }
-  }
-
   //Fetch all courses those are not deleted
   async getAllCourses(searchTerm, order, sort) {
     const tracer = trace.getTracer('course-service');
     const span = tracer.startSpan('viewCourses');
+    const end = serviceRequestDuration.startTimer({ service: 'CourseService', operation: 'FetchCourse' });
     let options = {
       where: {
         status: {
@@ -146,13 +100,14 @@ class CourseService {
     }
   }
   
-  
-async getAllCoursesUser(searchTerm, order, sort, carrier) {
+  async getAllCoursesUser(searchTerm, order, sort, carrier) {
   const parentContext = propagation.extract(context.active(), carrier);
   const tracer = trace.getTracer('course-service');
   const span = tracer.startSpan('fetchCourseDetail', {
       attributes: { 'http.method': 'get' },
   }, parentContext);
+  const end = serviceRequestDuration.startTimer({ service: 'CourseService', operation: 'FetchCourse' });
+
   return await context.with(trace.setSpan(context.active(), span), async () => {
       try {
           const options = {
@@ -188,7 +143,7 @@ async getAllCoursesUser(searchTerm, order, sort, carrier) {
           span.end();
       }
   });
-}
+  }
 
 
 }

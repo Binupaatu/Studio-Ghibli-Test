@@ -6,6 +6,22 @@ const ApiService = require("./apiService");
 const UserService = require("./userService");
 const { USER_SERVICE_END_POINT } = require("../../config");
 const { trace, SpanStatusCode } = require('@opentelemetry/api');
+const client = require('prom-client');
+
+// Prometheus metrics setup
+const register = new client.Registry();
+
+// Collect default metrics
+client.collectDefaultMetrics({ register });
+
+// Custom Prometheus metrics
+const serviceRequestDuration = new client.Histogram({
+  name: 'service_request_duration_seconds',
+  help: 'Duration of service requests in seconds',
+  labelNames: ['service', 'operation', 'status_code'],
+  buckets: [0.1, 0.5, 1, 2.5, 5, 10]
+});
+register.registerMetric(serviceRequestDuration);
 
 class CustomerService {
   constructor() {
@@ -16,6 +32,8 @@ class CustomerService {
   async createCustomer(data) {
     const tracer = trace.getTracer('customer-service');
     const span = tracer.startSpan('CreateCustomer');
+    const end = serviceRequestDuration.startTimer({ service: 'CustomerService', operation: 'createCustomer' });
+
     try {
       const customer = await Customer.create(this._extractCustomerFields(data));
       span.addEvent('New Customer created');
@@ -26,6 +44,8 @@ class CustomerService {
       span.setStatus({ code: SpanStatusCode.ERROR });
       throw new Error(error.message);
     } finally {
+      const statusCode = span.status.code === SpanStatusCode.OK ? 200 : 500;
+      end({ status_code: statusCode });
       span.end();
     }
   }
@@ -33,6 +53,8 @@ class CustomerService {
   async viewCustomers() {
     const tracer = trace.getTracer('customer-service');
     const span = tracer.startSpan('viewCustomers');
+    const end = serviceRequestDuration.startTimer({ service: 'CustomerService', operation: 'viewCustomers' });
+
     try {
       const customers = await this._queryDB(
         "SELECT c.*, u.id as user_id, u.email_id, u.role FROM `customers` c INNER JOIN `users` u ON u.id = c.user_id"
@@ -44,6 +66,8 @@ class CustomerService {
       span.setStatus({ code: SpanStatusCode.ERROR });
       throw error;
     } finally {
+      const statusCode = span.status.code === SpanStatusCode.OK ? 200 : 500;
+      end({ status_code: statusCode });
       span.end();
     }
   }
@@ -55,7 +79,8 @@ class CustomerService {
     const span = tracer.startSpan('fetch User email', {
       attributes: { 'http.method': 'get' },
     }, parentContext);
-    
+    const end = serviceRequestDuration.startTimer({ service: 'CustomerService', operation: 'viewCustomerById' });
+
   return context.with(trace.setSpan(context.active(), span), async () => {
     try {
       const customer = await this._findCustomer(id);
@@ -67,6 +92,8 @@ class CustomerService {
       span.setStatus({ code: SpanStatusCode.ERROR });
       throw error;
     } finally {
+      const statusCode = span.status.code === SpanStatusCode.OK ? 200 : 500;
+      end({ status_code: statusCode });
       span.end();
     }
   });
@@ -75,6 +102,8 @@ class CustomerService {
   async viewCustomerByUserId(id) {
     const tracer = trace.getTracer('customer-service');
     const span = tracer.startSpan('viewCustomerByUserId');
+    const end = serviceRequestDuration.startTimer({ service: 'CustomerService', operation: 'viewCustomerByUserId' });
+
     try {
       const customer = await this._findCustomerByUserId(id);
       span.setStatus({ code: SpanStatusCode.OK });
@@ -84,66 +113,13 @@ class CustomerService {
       span.setStatus({ code: SpanStatusCode.ERROR });
       throw error;
     } finally {
+      const statusCode = span.status.code === SpanStatusCode.OK ? 200 : 500;
+      end({ status_code: statusCode });
       span.end();
     }
-  }
-
-  async deleteCustomer(id) {
-    const tracer = trace.getTracer('customer-service');
-    const span = tracer.startSpan('deleteCustomer');
-    try {
-      const success = await this._deleteCustomer({ id });
-      span.setStatus({ code: SpanStatusCode.OK });
-      return success;
-    } catch (error) {
-      span.recordException(error);
-      span.setStatus({ code: SpanStatusCode.ERROR });
-      throw error;
-    } finally {
-      span.end();
-    }
-  }
-
-  async updateCustomer(customerDetail, customer_id) {
-    const tracer = trace.getTracer('customer-service');
-    const span = tracer.startSpan('updateCustomer');
-    try {
-      const updatedCustomer = await this._updateCustomer(customerDetail, { id: customer_id });
-      if (updatedCustomer) {
-        span.setStatus({ code: SpanStatusCode.OK });
-        return updatedCustomer;
-      } else {
-        span.setStatus({ code: SpanStatusCode.ERROR });
-        return null;
-      }
-    } catch (error) {
-      span.recordException(error);
-      span.setStatus({ code: SpanStatusCode.ERROR });
-      throw error;
-    } finally {
-      span.end();
-    }
-  }
-
-  async viewCustomerEnrollments(id) {
-    const tracer = trace.getTracer('customer-service');
-    const span = tracer.startSpan('viewCustomerEnrollments');
-    try {
-      const enrollments = await this._findEnrollmentsByCustomer(id);
-      span.setStatus({ code: SpanStatusCode.OK });
-      return enrollments;
-    } catch (error) {
-      span.recordException(error);
-      span.setStatus({ code: SpanStatusCode.ERROR });
-      throw error;
-    } finally {
-      span.end();
-    }
-    
   }
 
   async getUserInfo(token) {
-    console.log(`${USER_SERVICE_END_POINT}/verify/token`);
     try {
       const user_info = await axios.get(
         `${USER_SERVICE_END_POINT}/verify/token`,

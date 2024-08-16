@@ -4,6 +4,30 @@ const customerService = new (require("../services/customerService"))();
 const customerValidationSchema = require("../validations/customerSchema");
 const Joi = require("joi");
 const { trace, context, propagation, SpanStatusCode } = require('@opentelemetry/api');
+const client = require('prom-client');
+
+// Prometheus metrics setup
+const register = new client.Registry();
+
+// Collect default metrics
+client.collectDefaultMetrics({ register });
+
+// Custom Prometheus metrics
+const httpRequestDurationMicroseconds = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.1, 0.5, 1, 2.5, 5, 10] // Buckets for response time duration
+});
+register.registerMetric(httpRequestDurationMicroseconds);
+
+const httpRequestCounter = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code']
+});
+register.registerMetric(httpRequestCounter);
+
 
 // Utility function to send responses
 const sendResponse = (res, status, message, data = null) => {
@@ -15,6 +39,7 @@ const CustomerController = {
 async createCustomer(req, res) {
   const tracer = trace.getTracer('customer-service');
   const span = tracer.startSpan('Create Customer');
+  const end = httpRequestDurationMicroseconds.startTimer();
 
   try {
       const activeContext = trace.setSpan(context.active(), span);
@@ -56,6 +81,8 @@ async createCustomer(req, res) {
   async listCustomers(req, res) {
     const tracer = trace.getTracer('customer-service');
     const span = tracer.startSpan('getAllCustomers');
+    const end = httpRequestDurationMicroseconds.startTimer();
+
     try {
       const activeContext = trace.setSpan(context.active(), span);
       
@@ -80,6 +107,9 @@ async createCustomer(req, res) {
         `Error: ${error.message}`
       );
     }finally {
+      const responseStatus = res.statusCode;
+      httpRequestCounter.inc({ method: req.method, route: req.route.path, status_code: responseStatus });
+      end({ method: req.method, route: req.route.path, status_code: responseStatus });
       span.end();
     }
   },
@@ -87,6 +117,8 @@ async createCustomer(req, res) {
   async viewCustomer(req, res) {
     const tracer = trace.getTracer('customer-service');
     const span = tracer.startSpan('getAllCustomers');
+    const end = httpRequestDurationMicroseconds.startTimer();
+
     const customer_id = req.params.id;
     try {
       const customerInfo = await customerService.viewCustomerById(customer_id);
@@ -110,6 +142,9 @@ async createCustomer(req, res) {
         `Error: ${error.message}`
       );
     }finally {
+      const responseStatus = res.statusCode;
+      httpRequestCounter.inc({ method: req.method, route: req.route.path, status_code: responseStatus });
+      end({ method: req.method, route: req.route.path, status_code: responseStatus });
       span.end();
     }
   },
@@ -119,6 +154,8 @@ async createCustomer(req, res) {
   const parentContext = propagation.extract(context.active(), req.headers);
   const tracer = trace.getTracer('customer-service');
   const span = tracer.startSpan('Create User', undefined, parentContext);
+  const end = httpRequestDurationMicroseconds.startTimer();
+
     try {
       
       const customerInfo = await customerService.viewCustomerByUserId(user_id,req.headers);
@@ -144,91 +181,11 @@ async createCustomer(req, res) {
         `Error: ${error.message}`
       );
     }finally {
+      const responseStatus = res.statusCode;
+      httpRequestCounter.inc({ method: req.method, route: req.route.path, status_code: responseStatus });
+      end({ method: req.method, route: req.route.path, status_code: responseStatus });
       span.end();
   }
-  },
-
-  async viewCustomerEnrollments(req, res) {
-    try {
-      const userInfo = await customerService.getUserInfo(
-        req.headers.authorization.split(" ")[1]
-      );
-      const customerEnrollments = await customerService.viewCustomerEnrollments(
-        userInfo[0].profile.id
-      );
-
-      if (null != customerEnrollments) {
-        sendResponse(
-          res,
-          HttpStatus.OK,
-          "Customer Enrollments have been fetched successfully.",
-          customerEnrollments
-        );
-      } else {
-        sendResponse(res, HttpStatus.BAD_REQUEST, "Customer not found!");
-      }
-    } catch (error) {
-      sendResponse(
-        res,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-        `Error viewCustomerEnrollments : ${error.message}`
-      );
-    }
-  },
-
-  async deleteCustomer(req, res) {
-    const customer_id = req.params.id;
-
-    try {
-      const customerInfo = await customerService.viewCustomerById(customer_id);
-      if (customerInfo.length > 0) {
-        const customerResponse = await customerService.deleteCustomer(
-          customer_id
-        );
-
-        if (customerResponse) {
-          await userService.deleteUser(customerInfo[0].user_id);
-          sendResponse(res, HttpStatus.OK, `Customer deleted successfully`);
-        } else {
-          sendResponse(res, HttpStatus.BAD_REQUEST, "User is Empty!");
-        }
-      } else {
-        sendResponse(res, HttpStatus.BAD_REQUEST, "User is Empty!");
-      }
-    } catch (error) {
-      sendResponse(
-        res,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-        `Error: ${error.message}`
-      );
-    }
-  },
-
-  async updateCustomer(req, res) {
-    const customer_id = req.params.id;
-    try {
-      const updateResponse = await customerService.updateCustomer(
-        req.body,
-        customer_id
-      );
-
-      if (updateResponse !== 409) {
-        sendResponse(
-          res,
-          HttpStatus.OK,
-          `Customer details updated successfully`,
-          req.body
-        );
-      } else {
-        sendResponse(res, HttpStatus.BAD_REQUEST, "User not exists!");
-      }
-    } catch (error) {
-      sendResponse(
-        res,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-        `Error: ${error.message}`
-      );
-    }
   },
 };
 

@@ -11,13 +11,14 @@ class UserService {
         const span = tracer.startSpan('Create User', {
             attributes: { 'http.method': 'POST' },
         }, parentContext);
-    
         return context.with(trace.setSpan(context.active(), span), async () => {
             try {
                 const userExists = await User.findOne({
                     where: { email_id: userData.email, status: 1 },
                 });
+                
                 if (userExists) {
+
                     throw new Error("User already exists");
                 }
     
